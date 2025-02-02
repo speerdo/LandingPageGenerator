@@ -1,5 +1,5 @@
 import { type NextRequest } from 'next/server';
-import { chromium } from '@playwright/test';
+import * as cheerio from 'cheerio';
 
 export const config = {
   runtime: 'edge'
@@ -13,7 +13,6 @@ export default async function handler(req: NextRequest) {
     });
   }
 
-  let browser;
   try {
     const requestUrl = new URL(req.url);
     const url = requestUrl.searchParams.get('url');
@@ -25,28 +24,22 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    browser = await chromium.launch();
-    const page = await browser.newPage();
-    
-    // Block unnecessary resources
-    await page.route('**/*', route => {
-      const resourceType = route.request().resourceType();
-      if (['image', 'stylesheet', 'font'].includes(resourceType)) {
-        route.abort();
-      } else {
-        route.continue();
+    // Use native fetch
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       }
     });
 
-    await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 15000 
-    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch URL: ${response.status}`);
+    }
 
-    const title = await page.title();
-    const description = await page.$eval('meta[name="description"]', el => el.getAttribute('content') || '');
-
-    await browser.close();
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    const title = $('title').text().trim();
+    const description = $('meta[name="description"]').attr('content') || '';
     
     return new Response(JSON.stringify({
       title,
@@ -59,9 +52,6 @@ export default async function handler(req: NextRequest) {
     });
 
   } catch (error) {
-    if (browser) {
-      await browser.close();
-    }
     console.error('[Scraping API] Error:', error);
     return new Response(JSON.stringify({
       error: 'Failed to scrape website',
