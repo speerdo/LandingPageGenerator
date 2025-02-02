@@ -51,12 +51,20 @@ router.get('/', asyncHandler(async (req: express.Request, res: express.Response)
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36');
   
+  // Block images, stylesheets, and fonts to speed up load times:
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    const resourceType = req.resourceType();
+    if (['image', 'stylesheet', 'font'].includes(resourceType)) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
+
   try {
-    // Ensure the page loads fully
-    await page.goto(url, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 15000 
-    });
+    // Use a faster wait event and shorter timeout:
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     // Optional: log the beginning of the fetched HTML (first 200 characters)
     const html = await page.content();
