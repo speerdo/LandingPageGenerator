@@ -54,8 +54,8 @@ router.get('/', asyncHandler(async (req: express.Request, res: express.Response)
   try {
     // Ensure the page loads fully
     await page.goto(url, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000 
+      waitUntil: 'domcontentloaded',
+      timeout: 15000 
     });
 
     // Optional: log the beginning of the fetched HTML (first 200 characters)
