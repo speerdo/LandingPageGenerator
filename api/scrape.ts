@@ -20,6 +20,21 @@ function resolveUrl(base: string, url: string): string {
   }
 }
 
+// Define the interface for button styles
+interface ButtonStyle {
+  backgroundColor: string;
+  color: string;
+  padding: string;
+  borderRadius: string;
+}
+
+interface HeaderStyle {
+  fontSize: string;
+  fontWeight: string;
+  color: string;
+  fontFamily: string;
+}
+
 router.get('/', async (req: express.Request, res: express.Response) => {
   const { url, brand } = req.query;
   if (!url || typeof url !== 'string') {
@@ -29,14 +44,35 @@ router.get('/', async (req: express.Request, res: express.Response) => {
 
   try {
     const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=true`;
+    if (!apiKey) {
+      throw new Error('ScrapingBee API key is not configured');
+    }
+
+    // Optimize ScrapingBee parameters
+    const scrapingBeeUrl = new URL('https://app.scrapingbee.com/api/v1/');
+    scrapingBeeUrl.searchParams.append('api_key', apiKey);
+    scrapingBeeUrl.searchParams.append('url', url);
+    scrapingBeeUrl.searchParams.append('render_js', 'false'); // Faster without JS rendering
+    scrapingBeeUrl.searchParams.append('timeout', '10000'); // 10 second timeout
+    scrapingBeeUrl.searchParams.append('premium_proxy', 'true'); // Use premium proxies
     
-    const response = await fetch(scrapingBeeUrl);
+    console.log('[Scraping API] Fetching with ScrapingBee:', url);
+    const response = await fetch(scrapingBeeUrl.toString(), {
+      signal: AbortSignal.timeout(12000) // Client-side timeout
+    });
+
     if (!response.ok) {
-      throw new Error(`ScrapingBee API responded with status: ${response.status}`);
+      const error = await response.text();
+      console.error('[Scraping API] ScrapingBee error:', error);
+      throw new Error(`ScrapingBee API failed: ${response.status} - ${error}`);
     }
     
     const html = await response.text();
+    if (!html) {
+      throw new Error('Empty response from ScrapingBee');
+    }
+
+    console.log('[Scraping API] Successfully fetched HTML, length:', html.length);
     const $ = cheerio.load(html);
     
     // Extract images
@@ -124,9 +160,9 @@ router.get('/', async (req: express.Request, res: express.Response) => {
       spacing: ['0.5rem', '1rem', '1.5rem', '2rem'],
       borderRadius: ['0.25rem', '0.5rem', '0.75rem'],
       shadows: ['0 1px 3px rgba(0,0,0,0.1)'],
-      gradients: [],
-      buttonStyles: [],
-      headerStyles: [],
+      gradients: [] as string[],
+      buttonStyles: [] as ButtonStyle[],
+      headerStyles: [] as HeaderStyle[],
       layout: {
         maxWidth: '1200px',
         containerPadding: '1rem',
