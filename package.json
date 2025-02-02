@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
+    "@supabase/supabase-js": "^2.39.0",
     "cheerio": "^1.0.0",
     "clsx": "^2.1.0",
     "colorthief": "^2.6.0",
