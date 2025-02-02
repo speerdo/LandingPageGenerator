@@ -231,7 +231,7 @@ function NewProject() {
                   id="projectName"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
                   placeholder="My Landing Page"
                 />
               </div>
@@ -247,7 +247,7 @@ function NewProject() {
                   id="websiteUrl"
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
                   placeholder="https://example.com"
                 />
                 <label htmlFor="brand" className="block text-sm font-medium text-gray-700">
@@ -258,7 +258,7 @@ function NewProject() {
                   id="brand"
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
                 />
                 <p className="mt-2 text-sm text-gray-500">
                   We'll extract styles and assets from this URL to match your
@@ -296,7 +296,7 @@ function NewProject() {
                     rows={6}
                     value={marketingContent}
                     onChange={(e) => setMarketingContent(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
                     placeholder="Enter your marketing content here..."
                   />
                 </div>
@@ -318,7 +318,7 @@ function NewProject() {
                   rows={4}
                   value={additionalInstructions}
                   onChange={(e) => setAdditionalInstructions(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 px-3 py-2"
                   placeholder="Any specific requirements or preferences..."
                 />
               </div>
