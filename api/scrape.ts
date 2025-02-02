@@ -1,5 +1,6 @@
 import { type NextRequest } from 'next/server';
-import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer-core';
+import chrome from '@sparticuz/chromium-min';
 
 export const config = {
   runtime: 'edge'
@@ -13,8 +14,8 @@ export default async function handler(req: NextRequest) {
     });
   }
 
+  let browser;
   try {
-    // Fix: Parse URL parameters using Request URL
     const requestUrl = new URL(req.url);
     const url = requestUrl.searchParams.get('url');
 
@@ -25,30 +26,45 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
-    if (!apiKey) {
-      throw new Error('ScrapingBee API key is not configured');
-    }
+    // Configure Chrome for Edge runtime
+    browser = await puppeteer.launch({
+      args: chrome.args,
+      defaultViewport: chrome.defaultViewport,
+      executablePath: await chrome.executablePath(),
+      headless: true
+    });
 
-    // Updated ScrapingBee configuration to handle blocking
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true`;
+    const page = await browser.newPage();
     
-    console.log('[Scraping API] Fetching:', url);
-    const response = await fetch(scrapingBeeUrl);
-    const html = await response.text();
+    // Block unnecessary resources
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
 
-    if (!response.ok) {
-      throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
-    }
+    await page.goto(url, { 
+      waitUntil: 'domcontentloaded',
+      timeout: 15000 
+    });
 
-    const $ = cheerio.load(html);
-    
-    const title = $('title').text();
-    const description = $('meta[name="description"]').attr('content') || '';
+    const data = await page.evaluate(() => {
+      const title = document.title;
+      const description = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+      
+      return {
+        title,
+        description
+      };
+    });
+
+    await browser.close();
     
     return new Response(JSON.stringify({
-      title,
-      description,
+      ...data,
       url,
       status: 'success'
     }), {
@@ -57,6 +73,9 @@ export default async function handler(req: NextRequest) {
     });
 
   } catch (error) {
+    if (browser) {
+      await browser.close();
+    }
     console.error('[Scraping API] Error:', error);
     return new Response(JSON.stringify({
       error: 'Failed to scrape website',
