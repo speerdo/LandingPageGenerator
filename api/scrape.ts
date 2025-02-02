@@ -24,18 +24,47 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    // Use native fetch
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
+    const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
+    if (!apiKey) {
+      throw new Error('ScrapingBee API key is not configured');
+    }
 
+    // First try without premium features (1 credit)
+    const baseParams = {
+      'api_key': apiKey,
+      'url': url,
+      'render_js': 'false',
+      'block_resources': 'image,css,font',
+      'timeout': '10000'
+    };
+    const scrapingBeeParams = new URLSearchParams(baseParams);
+
+    let scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
+    console.log('[Scraping API] First attempt:', url);
+    let response = await fetch(scrapingBeeUrl);
+
+    // If failed, retry with premium proxy (10 credits)
     if (!response.ok) {
-      throw new Error(`Failed to fetch URL: ${response.status}`);
+      console.log('[Scraping API] Retrying with premium proxy');
+      scrapingBeeParams.set('premium_proxy', 'true');
+      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
+      response = await fetch(scrapingBeeUrl);
+    }
+
+    // If still failed, retry with JS rendering (15 credits)
+    if (!response.ok) {
+      console.log('[Scraping API] Retrying with JS rendering');
+      scrapingBeeParams.set('render_js', 'true');
+      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
+      response = await fetch(scrapingBeeUrl);
     }
 
     const html = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
+    }
+
     const $ = cheerio.load(html);
     
     const title = $('title').text().trim();
