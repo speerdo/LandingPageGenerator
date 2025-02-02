@@ -27,8 +27,8 @@ export default async function handler(req: NextRequest) {
       throw new Error('ScrapingBee API key is not configured');
     }
 
-    // Basic ScrapingBee request
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=false`;
+    // Updated ScrapingBee configuration to handle blocking
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=true&premium_proxy=true`;
     
     console.log('[Scraping API] Fetching:', url);
     const response = await fetch(scrapingBeeUrl);
@@ -38,10 +38,8 @@ export default async function handler(req: NextRequest) {
       throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
     }
 
-    // Basic extraction with cheerio
     const $ = cheerio.load(html);
     
-    // Extract just basic information first
     const title = $('title').text();
     const description = $('meta[name="description"]').attr('content') || '';
     
