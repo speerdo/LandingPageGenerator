@@ -1,4 +1,5 @@
 import express from 'express';
+import serverless from 'serverless-http';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import * as cheerio from 'cheerio';
@@ -279,4 +280,8 @@ router.get('/', asyncHandler(async (req: express.Request, res: express.Response)
   }
 }));
 
-export default router;
+// Create an Express app, attach the router, and export via serverless-http.
+const app = express();
+app.use('/', router);
+
+export default serverless(app);

@@ -34,20 +34,14 @@ async function logScrapingResult(
   }
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export async function scrapeWebsite(url: string, projectId: string, brand?: string): Promise<ScrapedAssets> {
   const startTime = Date.now();
   
   try {
     console.log(`[Scraping] Starting scrape of ${url}`);
     const brandParam = brand ? `&brand=${encodeURIComponent(brand)}` : '';
-    console.log(`[Scraping] Making request to: ${API_URL}/api/scrape?url=${encodeURIComponent(url)}${brandParam}`);
-    const response = await fetch(
-      `/api/scrape?url=${encodeURIComponent(url)}${
-        brand ? `&brand=${encodeURIComponent(brand)}` : ""
-      }`
-    );
+    console.log(`[Scraping] Making request to: /api/scrape?url=${encodeURIComponent(url)}${brandParam}`);
+    const response = await fetch(`/api/scrape?url=${encodeURIComponent(url)}${brandParam}`);
     
     console.log(`[Scraping] API Response status:`, response.status);
     if (!response.ok) {
