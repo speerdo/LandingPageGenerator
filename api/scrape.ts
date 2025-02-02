@@ -1,7 +1,6 @@
 import { type NextRequest } from 'next/server';
 import * as cheerio from 'cheerio';
 
-// Add edge runtime directive
 export const config = {
   runtime: 'edge'
 };
@@ -14,10 +13,7 @@ export default async function handler(req: NextRequest) {
     });
   }
 
-  // Fix: Use URL object to get search params
-  const { searchParams } = new URL(req.url);
-  const url = searchParams.get('url');
-
+  const url = req.nextUrl.searchParams.get('url');
   if (!url) {
     return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
       status: 400,
