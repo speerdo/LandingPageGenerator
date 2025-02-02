@@ -34,7 +34,8 @@ export default async function handler(req: NextRequest) {
       'api_key': apiKey,
       'url': url,
       'render_js': 'false',
-      'block_resources': 'image,css,font',
+      'block_ads': 'true',
+      'block_resources': 'true',
       'timeout': '10000'
     };
     const scrapingBeeParams = new URLSearchParams(baseParams);
