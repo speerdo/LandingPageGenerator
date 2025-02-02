@@ -13,15 +13,18 @@ export default async function handler(req: NextRequest) {
     });
   }
 
-  const url = req.nextUrl.searchParams.get('url');
-  if (!url) {
-    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
   try {
+    // Fix: Parse URL parameters using Request URL
+    const requestUrl = new URL(req.url);
+    const url = requestUrl.searchParams.get('url');
+
+    if (!url) {
+      return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
     if (!apiKey) {
       throw new Error('ScrapingBee API key is not configured');
