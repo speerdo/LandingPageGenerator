@@ -81,22 +81,65 @@ export default async function handler(req: NextRequest) {
 
     const $ = cheerio.load(html);
 
-    // Extract colors
+    // Extract colors (improved to get computed styles)
     const colors = new Set<string>();
-    $('[style*="color"], [style*="background"]').each((_, el) => {
-      const style = $(el).attr('style') || '';
-      const color = style.match(/color:\s*([^;]+)/i)?.[1];
-      const bgColor = style.match(/background(?:-color)?:\s*([^;]+)/i)?.[1];
-      if (color) colors.add(color);
-      if (bgColor) colors.add(bgColor);
+    $('*').each((_, el) => {
+      const color = $(el).css('color');
+      const backgroundColor = $(el).css('background-color');
+      if (color && color !== 'transparent') colors.add(color);
+      if (backgroundColor && backgroundColor !== 'transparent') colors.add(backgroundColor);
     });
 
-    // Extract fonts
+    // Extract fonts (improved to include computed styles)
     const fonts = new Set<string>();
-    $('[style*="font-family"]').each((_, el) => {
-      const style = $(el).attr('style') || '';
-      const font = style.match(/font-family:\s*([^;]+)/i)?.[1];
-      if (font) fonts.add(font);
+    $('*').each((_, el) => {
+      const fontFamily = $(el).css('font-family');
+      if (fontFamily) fonts.add(fontFamily.replace(/['"]/g, ''));
+    });
+
+    // Deduplicate button styles
+    const buttonStylesSet = new Set<string>();
+    const buttonStyles: ButtonStyle[] = [];
+    $('button, .button, [class*="btn"], a[href]:not([href^="#"])').each((_, el) => {
+      const backgroundColor = $(el).css('background-color');
+      const color = $(el).css('color');
+      const padding = $(el).css('padding');
+      const borderRadius = $(el).css('border-radius');
+      
+      const styleKey = JSON.stringify({
+        backgroundColor: backgroundColor || '#4F46E5',
+        color: color || '#FFFFFF',
+        padding: padding || '0.75rem 1.5rem',
+        borderRadius: borderRadius || '0.375rem'
+      });
+      
+      if (!buttonStylesSet.has(styleKey)) {
+        buttonStylesSet.add(styleKey);
+        buttonStyles.push(JSON.parse(styleKey));
+      }
+    });
+
+    // Extract header styles with actual values
+    const headerStylesSet = new Set<string>();
+    const headerStyles: HeaderStyle[] = [];
+    $('h1, h2, h3, h4, h5, h6').each((_, el) => {
+      const computedStyle = {
+        fontSize: $(el).css('font-size'),
+        fontWeight: $(el).css('font-weight'),
+        color: $(el).css('color'),
+        fontFamily: $(el).css('font-family')
+      };
+      const styleKey = JSON.stringify({
+        fontSize: computedStyle.fontSize || '1rem',
+        fontWeight: computedStyle.fontWeight || '600',
+        color: computedStyle.color || '#111827',
+        fontFamily: (computedStyle.fontFamily || 'system-ui').replace(/['"]/g, '')
+      });
+      
+      if (!headerStylesSet.has(styleKey)) {
+        headerStylesSet.add(styleKey);
+        headerStyles.push(JSON.parse(styleKey));
+      }
     });
 
     // Extract images
@@ -121,42 +164,20 @@ export default async function handler(req: NextRequest) {
       if (bgColor) sectionBackgroundColors.add(bgColor);
     });
 
-    // Extract styles
+    // Update the styles object
     const styles = {
       spacing: ['0.5rem', '1rem', '1.5rem', '2rem'],
       borderRadius: ['0.25rem', '0.5rem', '0.75rem'],
       shadows: ['0 1px 3px rgba(0,0,0,0.1)'],
       gradients: [] as string[],
-      buttonStyles: [] as ButtonStyle[],
-      headerStyles: [] as HeaderStyle[],
+      buttonStyles,
+      headerStyles,
       layout: {
         maxWidth: '1200px',
         containerPadding: '1rem',
         gridGap: '1rem'
       }
     };
-
-    // Extract button styles
-    $('button, .button, [class*="btn"]').each((_, el) => {
-      const style = $(el).attr('style') || '';
-      styles.buttonStyles.push({
-        backgroundColor: style.match(/background-color:\s*([^;]+)/i)?.[1] || '#4F46E5',
-        color: style.match(/color:\s*([^;]+)/i)?.[1] || '#FFFFFF',
-        padding: style.match(/padding:\s*([^;]+)/i)?.[1] || '0.75rem 1.5rem',
-        borderRadius: style.match(/border-radius:\s*([^;]+)/i)?.[1] || '0.375rem'
-      });
-    });
-
-    // Extract header styles
-    $('h1, h2, h3, h4, h5, h6').each((_, el) => {
-      const style = $(el).attr('style') || '';
-      styles.headerStyles.push({
-        fontSize: style.match(/font-size:\s*([^;]+)/i)?.[1] || '1rem',
-        fontWeight: style.match(/font-weight:\s*([^;]+)/i)?.[1] || '600',
-        color: style.match(/color:\s*([^;]+)/i)?.[1] || '#111827',
-        fontFamily: style.match(/font-family:\s*([^;]+)/i)?.[1] || 'system-ui'
-      });
-    });
 
     return new Response(JSON.stringify({
       colors: Array.from(colors),
