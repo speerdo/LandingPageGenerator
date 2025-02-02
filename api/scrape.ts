@@ -1,8 +1,10 @@
-import express from 'express';
-import serverless from 'serverless-http';
+import { type NextRequest } from 'next/server';
 import * as cheerio from 'cheerio';
 
-const router = express.Router();
+// Add edge runtime directive
+export const config = {
+  runtime: 'edge'
+};
 
 // Helper function to resolve URLs
 function resolveUrl(base: string, url: string): string {
@@ -35,11 +37,22 @@ interface HeaderStyle {
   fontFamily: string;
 }
 
-router.get('/', async (req: express.Request, res: express.Response) => {
-  const { url, brand } = req.query;
-  if (!url || typeof url !== 'string') {
-    res.status(400).json({ error: 'Missing or invalid URL parameter' });
-    return;
+export default async function handler(req: NextRequest) {
+  if (req.method !== 'GET') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  const url = req.nextUrl.searchParams.get('url');
+  const brand = req.nextUrl.searchParams.get('brand');
+
+  if (!url) {
+    return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   try {
@@ -48,31 +61,21 @@ router.get('/', async (req: express.Request, res: express.Response) => {
       throw new Error('ScrapingBee API key is not configured');
     }
 
-    // Optimize ScrapingBee parameters
     const scrapingBeeUrl = new URL('https://app.scrapingbee.com/api/v1/');
     scrapingBeeUrl.searchParams.append('api_key', apiKey);
     scrapingBeeUrl.searchParams.append('url', url);
-    scrapingBeeUrl.searchParams.append('render_js', 'false'); // Faster without JS rendering
-    scrapingBeeUrl.searchParams.append('timeout', '10000'); // 10 second timeout
-    scrapingBeeUrl.searchParams.append('premium_proxy', 'true'); // Use premium proxies
-    
-    console.log('[Scraping API] Fetching with ScrapingBee:', url);
-    const response = await fetch(scrapingBeeUrl.toString(), {
-      signal: AbortSignal.timeout(12000) // Client-side timeout
-    });
+    scrapingBeeUrl.searchParams.append('render_js', 'false');
+    scrapingBeeUrl.searchParams.append('timeout', '10000');
+    scrapingBeeUrl.searchParams.append('premium_proxy', 'true');
+
+    console.log('[Scraping API] Fetching:', url);
+    const response = await fetch(scrapingBeeUrl.toString());
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('[Scraping API] ScrapingBee error:', error);
-      throw new Error(`ScrapingBee API failed: ${response.status} - ${error}`);
-    }
-    
-    const html = await response.text();
-    if (!html) {
-      throw new Error('Empty response from ScrapingBee');
+      throw new Error(`ScrapingBee API failed: ${response.status}`);
     }
 
-    console.log('[Scraping API] Successfully fetched HTML, length:', html.length);
+    const html = await response.text();
     const $ = cheerio.load(html);
     
     // Extract images
@@ -206,7 +209,7 @@ router.get('/', async (req: express.Request, res: express.Response) => {
       }
     });
 
-    res.json({
+    return new Response(JSON.stringify({
       colors: Array.from(colors),
       fonts: Array.from(fonts),
       images: Array.from(images),
@@ -217,18 +220,19 @@ router.get('/', async (req: express.Request, res: express.Response) => {
       footerBackgroundColor,
       footerLogo: resolveUrl(url, footerLogo),
       sectionBackgroundColors
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('[Scraping API] Error:', error);
-    res.status(500).json({ 
+    return new Response(JSON.stringify({
       error: 'Failed to scrape website',
       message: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
-});
-
-const app = express();
-app.use('/', router);
-
-export default serverless(app);
+}
