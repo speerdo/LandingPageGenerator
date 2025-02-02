@@ -1,54 +1,124 @@
-# Astro Starter Kit: Basics
+# AI Landing Page Generator
 
-```sh
-npm create astro@latest -- --template basics
-```
+An intelligent web application that generates custom landing pages by analyzing and adapting existing website styles and content. This project leverages AI to create visually appealing, responsive landing pages tailored to a brand's unique design language.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/astro/tree/latest/examples/basics)
-[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/astro/tree/latest/examples/basics)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/withastro/astro?devcontainer_path=.devcontainer/basics/devcontainer.json)
+## Overview
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+The AI Landing Page Generator allows you to:
+- **Extract visual assets**:
+  - Scrape target websites to capture brand colors, fonts, images, logos, and style details.
+  - Extract layout and design properties such as header/footer background colors and section styling.
+- **Generate tailored landing pages**:
+  - Use OpenAI to generate complete HTML/CSS code for a landing page that matches the extracted style.
+  - Optionally generate landing pages with Lorem Ipsum placeholder text.
+- **Manage projects and versions**:
+  - Create projects associated with a website URL.
+  - Save different versions of the generated landing page for review and further customization.
 
-![just-the-basics](https://github.com/withastro/astro/assets/2244813/a0a5533c-a856-4198-8470-2d67b1d7c554)
+## Features
 
-## 🚀 Project Structure
+- **Visual Style Extraction**:
+  - Uses Puppeteer (with extra stealth plugins) and Cheerio to scrape and extract visual properties, including:
+    - Colors and fonts
+    - Button, header, and footer styling
+    - Logo assets (with intelligent domain matching)
+    - Background colors from sections to simulate a "visual screenshot."
+- **AI-Powered Page Generation**:
+  - Constructs a detailed text prompt for the OpenAI API based on the scraped website style.
+  - Generates responsive HTML/CSS that closely matches the design of the reference website.
+  - Provides an option to generate content with Lorem Ipsum text.
+- **Project Management**:
+  - Create a new project that saves the target URL and extracted visual assets.
+  - Manage project settings and create new versions as the design is iteratively refined.
+- **Responsive and Accessible**:
+  - Generated pages are built using semantic HTML5.
+  - Designs are responsive and aim to meet accessibility guidelines.
 
-Inside of your Astro project, you'll see the following folders and files:
+## Tech Stack
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src/
-│   ├── components/
-│   │   └── Card.astro
-│   ├── layouts/
-│   │   └── Layout.astro
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+- **Frontend**: React, TypeScript, Vite, TailwindCSS
+- **Backend/Database**: Supabase
+- **AI Integration**: OpenAI
+- **Web Scraping**: Puppeteer, Cheerio
+- **Icons**: Lucide React
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Setup
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-username/ai-landing-page-generator.git
+   cd ai-landing-page-generator
+   ```
 
-Any static assets, like images, can be placed in the `public/` directory.
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-## 🧞 Commands
+3. **Configure Environment Variables**:
+   - Create a `.env` file based on the provided `.env.example` file:
+     ```bash
+     cp .env.example .env
+     ```
+   - Add your API keys and endpoint URLs in the `.env` file:
+     ```env
+     VITE_SUPABASE_URL=your_supabase_url
+     VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+     VITE_OPENAI_API_KEY=your_openai_api_key
+     VITE_SCRAPINGBEE_API_KEY=your_scrapingbee_api_key
+     ```
 
-All commands are run from the root of the project, from a terminal:
+4. **Run the App**:
+   ```bash
+   npm run dev
+   ```
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+## Usage
 
-## 👀 Want to learn more?
+1. **Create a New Project**:
+   - Enter the website URL you want to analyze.
+   - Optionally provide a project name and select a brand.
+   - The app will scrape the target website to collect visual assets and design details.
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+2. **Generate Landing Page Content**:
+   - Choose between using real content or Lorem Ipsum placeholder text.
+   - Optionally add additional marketing instructions.
+   - The AI engine will generate the complete HTML/CSS landing page using the extracted style details.
+
+3. **Review and Export**:
+   - Preview the generated landing page.
+   - Save different versions and iterate on the design as needed.
+
+## Contributing
+
+Contributions are welcome! If you'd like to add features or fix bugs, please follow these steps:
+
+1. Fork the repository.
+2. Create a feature branch:
+   ```bash
+   git checkout -b feature/your-feature
+   ```
+3. Commit your changes:
+   ```bash
+   git commit -m "Add your feature"
+   ```
+4. Push your branch:
+   ```bash
+   git push origin feature/your-feature
+   ```
+5. Open a Pull Request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Acknowledgments
+
+- **OpenAI** for providing the AI engine.
+- **Supabase** for backend and authentication.
+- **Puppeteer & Cheerio** for web scraping capabilities.
+- **Lucide React** for the icon set.
+
+---
+
+Enjoy building and generating unique landing pages with AI!
