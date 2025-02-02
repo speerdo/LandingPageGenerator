@@ -1,6 +1,5 @@
 import { type NextRequest } from 'next/server';
-import puppeteer from 'puppeteer-core';
-import chrome from '@sparticuz/chromium-min';
+import { chromium } from '@playwright/test';
 
 export const config = {
   runtime: 'edge'
@@ -26,23 +25,16 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    // Configure Chrome for Edge runtime
-    browser = await puppeteer.launch({
-      args: chrome.args,
-      defaultViewport: chrome.defaultViewport,
-      executablePath: await chrome.executablePath(),
-      headless: true
-    });
-
+    browser = await chromium.launch();
     const page = await browser.newPage();
     
     // Block unnecessary resources
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
-        req.abort();
+    await page.route('**/*', route => {
+      const resourceType = route.request().resourceType();
+      if (['image', 'stylesheet', 'font'].includes(resourceType)) {
+        route.abort();
       } else {
-        req.continue();
+        route.continue();
       }
     });
 
@@ -51,20 +43,14 @@ export default async function handler(req: NextRequest) {
       timeout: 15000 
     });
 
-    const data = await page.evaluate(() => {
-      const title = document.title;
-      const description = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-      
-      return {
-        title,
-        description
-      };
-    });
+    const title = await page.title();
+    const description = await page.$eval('meta[name="description"]', el => el.getAttribute('content') || '');
 
     await browser.close();
     
     return new Response(JSON.stringify({
-      ...data,
+      title,
+      description,
       url,
       status: 'success'
     }), {
