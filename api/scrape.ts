@@ -47,8 +47,8 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const SCRAPER_BEE_API_KEY = process.env.VITE_SCRAPINGBEE_API_KEY;
-    if (!SCRAPER_BEE_API_KEY) {
+    const VITE_SCRAPINGBEE_API_KEY = process.env.VITE_SCRAPINGBEE_API_KEY;
+    if (!VITE_SCRAPINGBEE_API_KEY) {
       return new Response(JSON.stringify({
         error: 'Configuration error',
         message: 'ScraperBee API key is not configured'
@@ -59,7 +59,7 @@ export default async function handler(req: NextRequest) {
     }
 
     // Using the correct endpoint format with 'render_js=true'
-    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/get?api_key=${SCRAPER_BEE_API_KEY}&url=${encodeURIComponent(url)}&render_js=true&wait_for=5000`;
+    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/get?api_key=${VITE_SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(url)}&render_js=true&wait_for=5000`;
     
     try {
       const response = await fetch(scraperBeeUrl, {
