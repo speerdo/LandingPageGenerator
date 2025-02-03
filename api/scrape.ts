@@ -58,22 +58,15 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/`;
+    // Using the correct endpoint format
+    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/get?api_key=${SCRAPER_BEE_API_KEY}&url=${encodeURIComponent(url)}&javascript=true&wait_for=5000`;
     
     try {
       const response = await fetch(scraperBeeUrl, {
-        method: 'POST',
+        method: 'GET',  // Changed to GET
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SCRAPER_BEE_API_KEY}`
-        },
-        body: JSON.stringify({
-          url: url,
-          javascript: true,
-          render_js: true,
-          wait_for: 5000  // Wait for 5 seconds for JS to load
-        })
+          'Accept': 'application/json'
+        }
       });
 
       if (response.status === 530) {
