@@ -47,7 +47,7 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const SCRAPER_BEE_API_KEY = process.env.SCRAPER_BEE_API_KEY;
+    const SCRAPER_BEE_API_KEY = process.env.VITE_SCRAPINGBEE_API_KEY;
     if (!SCRAPER_BEE_API_KEY) {
       throw new Error('ScraperBee API key is not configured');
     }
