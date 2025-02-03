@@ -1,5 +1,6 @@
 import { type NextRequest } from 'next/server';
 import * as cheerio from 'cheerio';
+import { ScrapedImage } from '../src/types/website';
 
 export const config = {
   runtime: 'edge'
@@ -52,11 +53,34 @@ export default async function handler(req: NextRequest) {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
+        'Pragma': 'no-cache',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1'
+      },
+      redirect: 'follow',
+      credentials: 'omit'
     });
 
+    // Add delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+    }
+
     const html = await response.text();
+    
+    // Early detection of protection pages
+    if (html.includes('Just a moment...') || 
+        html.includes('DDoS protection by') ||
+        html.includes('Please Wait...') ||
+        html.includes('Checking your browser')) {
+      throw new Error('Website is protected by Cloudflare or similar service');
+    }
+
     const $ = cheerio.load(html);
 
     // Extract all inline styles and classes
@@ -64,7 +88,7 @@ export default async function handler(req: NextRequest) {
     const inlineStyles = new Set<string>();
     $('[style]').each((_, el) => inlineStyles.add($(el).attr('style') || ''));
 
-    // Extract colors from both inline styles and style tags
+    // Extract colors more aggressively
     const colors = new Set<string>();
     const colorRegex = /#[0-9a-f]{3,6}|rgb\([^)]+\)|rgba\([^)]+\)|hsl\([^)]+\)|hsla\([^)]+\)/gi;
     
@@ -78,90 +102,103 @@ export default async function handler(req: NextRequest) {
       matches.forEach(color => colors.add(color));
     });
 
-    // Extract fonts
+    // From color attributes
+    $('[color], [bgcolor]').each((_, el) => {
+      const color = $(el).attr('color') || $(el).attr('bgcolor');
+      if (color?.match(colorRegex)) colors.add(color);
+    });
+
+    // Extract fonts more thoroughly
     const fonts = new Set<string>();
     $('[style*="font-family"]').each((_, el) => {
       const fontFamily = extractCssValue($(el).attr('style') || '', 'font-family');
       if (fontFamily) fonts.add(fontFamily.replace(/['"]/g, '').split(',')[0].trim());
     });
+    // Also check computed styles in style tags
+    const fontRegex = /font-family:\s*([^;}]+)/g;
+    const styleTagFonts = styleElements.match(fontRegex) || [];
+    styleTagFonts.forEach(font => {
+      const fontFamily = font.replace('font-family:', '').trim();
+      fonts.add(fontFamily.replace(/['"]/g, '').split(',')[0].trim());
+    });
 
-    // Extract images with dimensions and positions
-    const images = new Set<{url: string; width: string; height: string; position: string}>();
-    $('img').each((_, el) => {
+    // Extract images with better validation
+    const images = new Set<ScrapedImage>();
+    $('img[src]').each((_, el) => {
       const $el = $(el);
       const src = $el.attr('src');
-      if (src) {
-        images.add({
-          url: resolveUrl(url, src),
-          width: $el.attr('width') || extractCssValue($el.attr('style') || '', 'width') || '',
-          height: $el.attr('height') || extractCssValue($el.attr('style') || '', 'height') || '',
-          position: 'content' // Could be 'header', 'footer', 'hero', etc. based on position
-        });
+      if (src && !src.startsWith('data:') && !src.includes('captcha')) {
+        const resolvedSrc = resolveUrl(url, src);
+        if (resolvedSrc) {
+          images.add({
+            src: resolvedSrc,
+            width: $el.attr('width') || extractCssValue($el.attr('style') || '', 'width') || '',
+            height: $el.attr('height') || extractCssValue($el.attr('style') || '', 'height') || ''
+          });
+        }
       }
     });
 
-    // Extract layout information
+    // Extract layout with fallbacks
     const layout = {
       header: {
-        height: $('header').first().attr('style')?.match(/height:\s*([^;]+)/)?.[1] || '',
-        backgroundColor: extractCssValue($('header').first().attr('style') || '', 'background-color') || ''
+        height: $('header').first().css('height') || 
+               extractCssValue($('header').first().attr('style') || '', 'height') || 
+               '60px',
+        backgroundColor: $('header').first().css('background-color') || 
+                        extractCssValue($('header').first().attr('style') || '', 'background-color') || 
+                        '#ffffff'
       },
       footer: {
-        height: $('footer').first().attr('style')?.match(/height:\s*([^;]+)/)?.[1] || '',
-        backgroundColor: extractCssValue($('footer').first().attr('style') || '', 'background-color') || ''
+        height: $('footer').first().css('height') || 
+               extractCssValue($('footer').first().attr('style') || '', 'height') || 
+               '60px',
+        backgroundColor: $('footer').first().css('background-color') || 
+                        extractCssValue($('footer').first().attr('style') || '', 'background-color') || 
+                        '#ffffff'
       },
       mainContent: {
-        maxWidth: extractCssValue($('main').first().attr('style') || '', 'max-width') || '1200px',
-        padding: extractCssValue($('main').first().attr('style') || '', 'padding') || '1rem'
+        maxWidth: $('main, .main, #main').first().css('max-width') || '1200px',
+        padding: $('main, .main, #main').first().css('padding') || '1rem'
       }
     };
 
-    // Extract button styles with more detail
-    const buttonStyles = new Set<string>();
-    $('button, .button, [class*="btn"]').each((_, el) => {
-      const style = $(el).attr('style') || '';
-      const buttonStyle = {
+    // Extract typography with validation
+    const typography = {
+      headings: $('h1, h2, h3, h4, h5, h6').map((_, el) => {
+        const $el = $(el);
+        const style = $el.attr('style') || '';
+        return {
+          tag: $el.get(0)?.tagName?.toLowerCase() || '',
+          fontSize: extractCssValue(style, 'font-size') || '',
+          fontWeight: extractCssValue(style, 'font-weight') || '',
+          color: extractCssValue(style, 'color') || '',
+          marginBottom: extractCssValue(style, 'margin-bottom') || ''
+        };
+      }).get(),
+      paragraphs: $('p').map((_, el) => {
+        const $el = $(el);
+        const style = $el.attr('style') || '';
+        return {
+          fontSize: extractCssValue(style, 'font-size') || '',
+          lineHeight: extractCssValue(style, 'line-height') || '',
+          color: extractCssValue(style, 'color') || ''
+        };
+      }).get()
+    };
+
+    // Extract button styles with validation
+    const buttons = $('button, .button, [class*="btn"]').map((_, el) => {
+      const $el = $(el);
+      const style = $el.attr('style') || '';
+      return {
         backgroundColor: extractCssValue(style, 'background-color') || '#4F46E5',
         color: extractCssValue(style, 'color') || '#FFFFFF',
         padding: extractCssValue(style, 'padding') || '0.75rem 1.5rem',
         borderRadius: extractCssValue(style, 'border-radius') || '0.375rem',
-        border: extractCssValue(style, 'border') || 'none',
-        fontSize: extractCssValue(style, 'font-size') || '1rem',
-        fontWeight: extractCssValue(style, 'font-weight') || '500',
-        text: $(el).text().trim()
-      };
-      buttonStyles.add(JSON.stringify(buttonStyle));
-    });
-
-    // Extract typography system
-    const typography = {
-      headings: [] as Array<{
-        tag: string;
-        fontSize: string;
-        fontWeight: string;
-        color: string;
-        marginBottom: string;
-        text: string;
-      }>,
-      paragraphs: [] as Array<{
-        fontSize: string;
-        lineHeight: string;
-        color: string;
-      }>
-    };
-
-    $('h1, h2, h3, h4, h5, h6').each((_, el) => {
-      const $el = $(el);
-      const style = $el.attr('style') || '';
-      typography.headings.push({
-        tag: $el.prop('tagName').toLowerCase(),
-        fontSize: extractCssValue(style, 'font-size') || '',
-        fontWeight: extractCssValue(style, 'font-weight') || '',
-        color: extractCssValue(style, 'color') || '',
-        marginBottom: extractCssValue(style, 'margin-bottom') || '',
         text: $el.text().trim()
-      });
-    });
+      };
+    }).get();
 
     return new Response(JSON.stringify({
       colors: Array.from(colors),
@@ -169,7 +206,7 @@ export default async function handler(req: NextRequest) {
       images: Array.from(images),
       layout,
       typography,
-      buttons: Array.from(buttonStyles).map(s => JSON.parse(s)),
+      buttons,
       meta: {
         title: $('title').text(),
         description: $('meta[name="description"]').attr('content') || '',
