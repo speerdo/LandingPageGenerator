@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { createProject, createVersion } from '../lib/supabase';
-import { generateLandingPage, getFallbackTemplate } from '../lib/ai';
+import { generateLandingPage } from '../lib/ai';
+import { getFallbackTemplate } from '../lib/templates';
 import { scrapeWebsite } from '../lib/scraper';
 import type { Project, ProjectSettings, WebsiteStyle } from '../types/database';
 
@@ -78,7 +79,10 @@ function NewProject() {
         version_number: 1,
         created_by: user.id,
         is_current: true,
-        html_content: getFallbackTemplate(scrapedAssets),
+        html_content: getFallbackTemplate({
+          ...scrapedAssets,
+          images: scrapedAssets.images?.map(src => ({ src }))
+        }),
         marketing_content: ''
       });
 
@@ -126,7 +130,13 @@ function NewProject() {
         Additional instructions:
         ${additionalInstructions}`;
 
-      const generatedContent = await generateLandingPage(prompt, extractedAssets || undefined);
+      const generatedContent = await generateLandingPage(
+        prompt, 
+        extractedAssets ? {
+          ...extractedAssets,
+          images: extractedAssets.images?.map(src => ({ src }))
+        } : undefined
+      );
 
       if (generatedContent.error) {
         throw new Error(generatedContent.error);
