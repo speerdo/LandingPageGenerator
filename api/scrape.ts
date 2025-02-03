@@ -47,21 +47,16 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const response = await fetch(url, {
+    const SCRAPER_BEE_API_KEY = process.env.SCRAPER_BEE_API_KEY;
+    if (!SCRAPER_BEE_API_KEY) {
+      throw new Error('ScraperBee API key is not configured');
+    }
+
+    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/?api_key=${SCRAPER_BEE_API_KEY}&url=${encodeURIComponent(url)}&javascript=true`;
+    const response = await fetch(scraperBeeUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1'
-      },
-      redirect: 'follow',
-      credentials: 'omit'
+        'Accept': 'application/json',
+      }
     });
 
     // Add delay to avoid rate limiting
