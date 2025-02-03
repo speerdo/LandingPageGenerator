@@ -58,12 +58,12 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    // Using the correct endpoint format
-    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/get?api_key=${SCRAPER_BEE_API_KEY}&url=${encodeURIComponent(url)}&javascript=true&wait_for=5000`;
+    // Using the correct endpoint format with 'render_js=true'
+    const scraperBeeUrl = `https://app.scraperbee.com/api/v1/get?api_key=${SCRAPER_BEE_API_KEY}&url=${encodeURIComponent(url)}&render_js=true&wait_for=5000`;
     
     try {
       const response = await fetch(scraperBeeUrl, {
-        method: 'GET',  // Changed to GET
+        method: 'GET',
         headers: {
           'Accept': 'application/json'
         }
