@@ -20,7 +20,7 @@ function resolveUrl(base: string, url: string): string {
   }
 }
 
-router.get('/', async (req: Request<ParamsDictionary, unknown, unknown, { url: string; brand?: string }>, res: Response, next: express.NextFunction): Promise<void> => {
+router.get('/', async (req: Request<ParamsDictionary, unknown, unknown, { url: string; brand?: string }>, res: Response) => {
   try {
     const url = req.query.url;
 
@@ -183,7 +183,7 @@ router.get('/', async (req: Request<ParamsDictionary, unknown, unknown, { url: s
 
   } catch (error) {
     console.error('[Scraping API] Error:', error);
-    next(error);
+    res.status(500).json({ error: 'Failed to scrape website' });
   }
 });
 

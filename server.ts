@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
-import scrapeRouter from './api/scrape.js';
+import scrapeRouter from './api/scrape';
 import cors from 'cors';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
