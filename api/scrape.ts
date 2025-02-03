@@ -47,7 +47,7 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const SCRAPER_BEE_API_KEY = process.env.SCRAPER_BEE_API_KEY;
+    const SCRAPER_BEE_API_KEY = process.env.VITE_SCRAPINGBEE_API_KEY;
     if (!SCRAPER_BEE_API_KEY) {
       return new Response(JSON.stringify({
         error: 'Configuration error',
