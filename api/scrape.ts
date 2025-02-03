@@ -46,22 +46,20 @@ export default async function handler(req: NextRequest) {
 
     // Enhanced color extraction
     const colors = new Set<string>();
-    $('*').each((_, el) => {
-      const computedStyle = $(el).css(['color', 'background-color', 'border-color']);
-      Object.values(computedStyle).forEach(color => {
-        if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') {
-          colors.add(color);
-        }
-      });
+    $('[style*="color"], [style*="background"]').each((_, el) => {
+      const style = $(el).attr('style') || '';
+      const color = style.match(/color:\s*([^;]+)/i)?.[1];
+      const bgColor = style.match(/background(?:-color)?:\s*([^;]+)/i)?.[1];
+      if (color && color !== 'transparent') colors.add(color);
+      if (bgColor && bgColor !== 'transparent') colors.add(bgColor);
     });
 
     // Enhanced font extraction
     const fonts = new Set<string>();
-    $('*').each((_, el) => {
-      const fontFamily = $(el).css('font-family');
-      if (fontFamily) {
-        fonts.add(fontFamily.replace(/['"]/g, '').split(',')[0].trim());
-      }
+    $('[style*="font-family"]').each((_, el) => {
+      const style = $(el).attr('style') || '';
+      const font = style.match(/font-family:\s*([^;]+)/i)?.[1];
+      if (font) fonts.add(font.replace(/['"]/g, ''));
     });
 
     // Enhanced logo detection
@@ -100,16 +98,14 @@ export default async function handler(req: NextRequest) {
     // Enhanced button styles
     const buttonStyles = new Set<string>();
     $('button, .button, [class*="btn"], a[href]:not([href^="#"])').each((_, el) => {
-      const style = {
-        backgroundColor: $(el).css('background-color') || '#4F46E5',
-        color: $(el).css('color') || '#FFFFFF',
-        padding: $(el).css('padding') || '0.75rem 1.5rem',
-        borderRadius: $(el).css('border-radius') || '0.375rem',
-        borderColor: $(el).css('border-color'),
-        fontSize: $(el).css('font-size'),
-        fontWeight: $(el).css('font-weight')
+      const style = $(el).attr('style') || '';
+      const buttonStyle = {
+        backgroundColor: style.match(/background-color:\s*([^;]+)/i)?.[1] || '#4F46E5',
+        color: style.match(/color:\s*([^;]+)/i)?.[1] || '#FFFFFF',
+        padding: style.match(/padding:\s*([^;]+)/i)?.[1] || '0.75rem 1.5rem',
+        borderRadius: style.match(/border-radius:\s*([^;]+)/i)?.[1] || '0.375rem'
       };
-      buttonStyles.add(JSON.stringify(style));
+      buttonStyles.add(JSON.stringify(buttonStyle));
     });
 
     // Enhanced heading styles
