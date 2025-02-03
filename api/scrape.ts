@@ -9,7 +9,7 @@ export const config = {
 function resolveUrl(base: string, url: string): string {
   try {
     if (!url) return '';
-    if (url.startsWith('data:')) return '';
+    if (url.startsWith('data:')) return url;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     if (url.startsWith('//')) {
       const baseUrl = new URL(base);
@@ -46,45 +46,17 @@ export default async function handler(req: NextRequest) {
       });
     }
 
-    const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
-    if (!apiKey) {
-      throw new Error('ScrapingBee API key is not configured');
-    }
-
-    const baseParams = {
-      'api_key': apiKey,
-      'url': url,
-      'render_js': 'false',
-      'block_ads': 'true',
-      'block_resources': 'true',
-      'timeout': '10000'
-    };
-    const scrapingBeeParams = new URLSearchParams(baseParams);
-    let scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
-
-    console.log('[Scraping API] First attempt:', url);
-    let response = await fetch(scrapingBeeUrl);
-
-    if (!response.ok) {
-      console.log('[Scraping API] Retrying with premium proxy');
-      scrapingBeeParams.set('premium_proxy', 'true');
-      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
-      response = await fetch(scrapingBeeUrl);
-    }
-
-    if (!response.ok) {
-      console.log('[Scraping API] Retrying with JS rendering');
-      scrapingBeeParams.set('render_js', 'true');
-      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
-      response = await fetch(scrapingBeeUrl);
-    }
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
 
     const html = await response.text();
-
-    if (!response.ok) {
-      throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
-    }
-
     const $ = cheerio.load(html);
 
     // Extract all inline styles and classes
@@ -181,9 +153,8 @@ export default async function handler(req: NextRequest) {
     $('h1, h2, h3, h4, h5, h6').each((_, el) => {
       const $el = $(el);
       const style = $el.attr('style') || '';
-      const tagName = ($el.prop('tagName') || '').toLowerCase();
       typography.headings.push({
-        tag: tagName,
+        tag: $el.prop('tagName').toLowerCase(),
         fontSize: extractCssValue(style, 'font-size') || '',
         fontWeight: extractCssValue(style, 'font-weight') || '',
         color: extractCssValue(style, 'color') || '',
