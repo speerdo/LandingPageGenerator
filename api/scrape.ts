@@ -1,9 +1,8 @@
-import { type NextRequest } from 'next/server';
+import express, { Request, Response } from 'express';
 import * as cheerio from 'cheerio';
+import type { ParamsDictionary } from 'express-serve-static-core';
 
-export const config = {
-  runtime: 'edge'
-};
+const router = express.Router();
 
 // Helper function to resolve URLs
 function resolveUrl(base: string, url: string): string {
@@ -21,23 +20,13 @@ function resolveUrl(base: string, url: string): string {
   }
 }
 
-export default async function handler(req: NextRequest) {
-  if (req.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
+router.get('/', async (req: Request<ParamsDictionary, unknown, unknown, { url: string; brand?: string }>, res: Response, next: express.NextFunction): Promise<void> => {
   try {
-    const requestUrl = new URL(req.url);
-    const url = requestUrl.searchParams.get('url');
+    const url = req.query.url;
 
     if (!url) {
-      return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      res.status(400).json({ error: 'Missing URL parameter' });
+      return;
     }
 
     const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
@@ -179,7 +168,7 @@ export default async function handler(req: NextRequest) {
       }
     };
 
-    return new Response(JSON.stringify({
+    res.json({
       colors: Array.from(colors),
       fonts: Array.from(fonts),
       images: Array.from(images),
@@ -190,22 +179,15 @@ export default async function handler(req: NextRequest) {
       footerBackgroundColor,
       footerLogo: resolveUrl(url, footerLogo),
       sectionBackgroundColors: Array.from(sectionBackgroundColors)
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('[Scraping API] Error:', error);
-    return new Response(JSON.stringify({
-      error: 'Failed to scrape website',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    next(error);
   }
-}
+});
+
+export default router;
 
 interface ButtonStyle {
   backgroundColor: string;
