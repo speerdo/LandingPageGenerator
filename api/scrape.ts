@@ -4,7 +4,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 const stealth = StealthPlugin();
 // Remove the chrome.app evasion which may not exist in this version
-// stealth.enabledEvasions.delete('chrome.app');
+stealth.enabledEvasions.delete('chrome.app');
 stealth.enabledEvasions.delete('chrome.csi');
 puppeteer.use(stealth);
 
