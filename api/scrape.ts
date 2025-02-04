@@ -82,27 +82,6 @@ function extractColors($: cheerio.CheerioAPI): string[] {
   return Array.from(colors).filter(color => color && color !== 'transparent' && color !== 'inherit');
 }
 
-interface Heading {
-  tag: string;
-  fontSize: string;
-  fontWeight: string;
-  color: string;
-  fontFamily: string;
-}
-
-function extractHeadings($: cheerio.CheerioAPI): Heading[] {
-  return $('h1, h2, h3, h4, h5, h6').map((_, el) => {
-    const $el = $(el);
-    return {
-      tag: $el.prop('tagName').toLowerCase(),
-      fontSize: $el.css('font-size') || '',
-      fontWeight: $el.css('font-weight') || '',
-      color: $el.css('color') || '',
-      fontFamily: $el.css('font-family') || ''
-    };
-  }).get();
-}
-
 export default async function handler(req: NextRequest) {
   if (req.method !== 'GET') {
     return new Response(
@@ -171,7 +150,6 @@ export default async function handler(req: NextRequest) {
         const src = $(el).attr('src') || '';
         return resolveUrl(url, src);
       }).get().filter(Boolean),
-      headings: extractHeadings($),
       logo: $('img[src*="logo"]').first().attr('src') || '',
       styles: {
         spacing: Array.from(new Set([

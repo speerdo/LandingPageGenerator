@@ -49,7 +49,6 @@ export interface WebsiteStyle {
   images: string[];
   logo?: string;
   metaDescription?: string;
-  headings?: string[];
   styles: {
     layout: {
       maxWidth: string;
