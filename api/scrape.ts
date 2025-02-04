@@ -1,241 +1,179 @@
-import { type NextRequest } from 'next/server';
-import * as cheerio from 'cheerio';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+puppeteer.use(StealthPlugin());
 
-export const config = {
-  runtime: 'edge'
-};
-
-// Helper function to resolve URLs
-function resolveUrl(base: string, url: string): string {
+// Global resolveUrl helper – available for use outside of page.evaluate if needed.
+export function resolveUrl(base: string, relative: string): string {
   try {
-    if (!url) return '';
-    if (url.startsWith('data:')) return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('//')) {
+    if (!relative) return '';
+    if (relative.startsWith('data:')) return '';
+    if (relative.startsWith('http')) return relative;
+    if (relative.startsWith('//')) {
       const baseUrl = new URL(base);
-      return `${baseUrl.protocol}${url}`;
+      return `${baseUrl.protocol}${relative}`;
     }
-    return new URL(url, base).href;
+    return new URL(relative, base).href;
   } catch {
     return '';
   }
 }
 
-// Add helper function for font extraction
-function extractFonts($: cheerio.CheerioAPI): string[] {
-  const fonts = new Set<string>();  
-
-  // Check common elements with computed styles
-  $('body, h1, h2, h3, h4, h5, h6, p, span, div').each((_, el) => {
-    // Try getting font-family from inline style first
-    const inlineStyle = $(el).attr('style');
-    if (inlineStyle) {
-      const fontMatch = inlineStyle.match(/font-family:\s*([^;}]+)[;}]/);
-      if (fontMatch?.[1]) {
-        fonts.add(fontMatch[1].trim());
-      }
-    }
-
-    // Also check any class-based styles
-    const classes = $(el).attr('class');
-    if (classes) {
-      const classNames = classes.split(' ');
-      classNames.forEach(className => {
-        $(`style:contains(.${className})`).each((_, styleEl) => {
-          const styleContent = $(styleEl).html() || '';
-          const fontMatches = styleContent.match(new RegExp(`\\.${className}[^}]*font-family:\\s*([^;}]+)[;}]`));
-          if (fontMatches?.[1]) {
-            fonts.add(fontMatches[1].trim());
-          }
-        });
-      });
-    }
-  });
-
-  // Check style tags
-  $('style').each((_, el) => {
-    const styleContent = $(el).html() || '';
-    const fontFamilyMatches = styleContent.match(/font-family:\s*([^;}]+)[;}]/g);
-    if (fontFamilyMatches) {
-      fontFamilyMatches.forEach(match => {
-        const font = match.replace('font-family:', '').replace(';', '').trim();
-        fonts.add(font);
-      });
-    }
-  });
-
-  // Check inline styles
-  $('[style*="font-family"]').each((_, el) => {
-    const style = $(el).attr('style') || '';
-    const fontMatch = style.match(/font-family:\s*([^;}]+)[;}]/);
-    if (fontMatch?.[1]) {
-      fonts.add(fontMatch[1].trim());
-    }
-  });
-
-  return Array.from(fonts)
-    .filter(font => font && font !== 'inherit')
-    .map(font => font.replace(/['"]/g, ''));
-}
-
-// Add helper function for color extraction
-function extractColors($: cheerio.CheerioAPI): string[] {
-  const colors = new Set<string>();
-  
-  // Check style tags
-  $('style').each((_, el) => {
-    const styleContent = $(el).html() || '';
-    const colorMatches = styleContent.match(/(#[0-9A-Fa-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\))/g);
-    if (colorMatches) {
-      colorMatches.forEach(color => colors.add(color));
-    }
-  });
-
-  // Check elements with background-color or color
-  $('[style*="color"], [style*="background"], [style*="background-color"]').each((_, el) => {
-    const bgColor = $(el).css('background-color');
-    const color = $(el).css('color');
-    if (bgColor && bgColor !== 'transparent') colors.add(bgColor);
-    if (color) colors.add(color);
-  });
-  return Array.from(colors).filter(color => color && color !== 'transparent' && color !== 'inherit');
-}
-
-export default async function handler(req: NextRequest) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { 'Content-Type': 'application/json' } }
-    );
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const requestUrl = new URL(req.url);
-    const url = requestUrl.searchParams.get('url');
-
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'Missing URL parameter' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const { url } = req.query;
+    if (typeof url !== 'string' || !url) {
+      return res.status(400).json({ error: 'Missing URL parameter' });
     }
-
-    const apiKey = process.env.VITE_SCRAPINGBEE_API_KEY;
-    if (!apiKey) {
-      throw new Error('ScrapingBee API key is not configured');
-    }
-
-    const baseParams = {
-      'api_key': apiKey,
-      'url': url,
-      'render_js': 'false',
-      'block_ads': 'true',
-      'block_resources': 'true',
-      'timeout': '10000'
-    };
-    const scrapingBeeParams = new URLSearchParams(baseParams);
-    let scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
     
-    console.log('[Scraping API] First attempt:', url);
-    let response = await fetch(scrapingBeeUrl);
-
-    if (!response.ok) {
-      console.log('[Scraping API] Retrying with premium proxy');
-      scrapingBeeParams.set('premium_proxy', 'true');
-      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
-      response = await fetch(scrapingBeeUrl);
-    }
-
-    if (!response.ok) {
-      console.log('[Scraping API] Retrying with JS rendering');
-      scrapingBeeParams.set('render_js', 'true');
-      scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?${scrapingBeeParams.toString()}`;
-      response = await fetch(scrapingBeeUrl);
-    }
-
-    const html = await response.text();
-
-    if (!response.ok) {
-      throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
-    }
-
-    const $ = cheerio.load(html) as cheerio.CheerioAPI;
-    
-    // Extract data using enhanced helpers
-    const extractedData = {
-      colors: extractColors($),
-      // Deduplicate fonts and provide fallback if none were extracted
-      fonts: (() => {
-        const f = extractFonts($);
-        return f.length ? f : ['system-ui'];
-      })(),
-      // Deduplicate image URLs
-      images: Array.from(new Set(
-        $('img[src]').map((_, el) => {
-          const src = $(el).attr('src') || '';
-          return resolveUrl(url, src);
-        }).get().filter(Boolean)
-      )),
-      logo: $('img[src*="logo"]').first().attr('src') || '',
-      styles: {
-        spacing: Array.from(new Set([
-          ...($('[style*="margin"]').map((_, el) => $(el).css('margin')).get()),
-          ...($('[style*="padding"]').map((_, el) => $(el).css('padding')).get())
-        ])).filter(Boolean),
-        borderRadius: Array.from(new Set(
-          $('[style*="border-radius"]').map((_, el) => $(el).css('border-radius')).get()
-        )).filter(Boolean),
-        shadows: Array.from(new Set(
-          $('[style*="box-shadow"]').map((_, el) => $(el).css('box-shadow')).get()
-        )).filter(Boolean),
-        gradients: Array.from(new Set(
-          $('[style*="gradient"]').map((_, el) => $(el).css('background-image')).get()
-        )).filter(val => val?.includes('gradient')),
-        buttonStyles: Array.from(new Set(
-          $('button, .button, [class*="btn"]').map((_, el) =>
-            JSON.stringify({
-              backgroundColor: $(el).css('background-color') || '#4F46E5',
-              color: $(el).css('color') || '#FFFFFF',
-              padding: $(el).css('padding') || '0.75rem 1.5rem',
-              borderRadius: $(el).css('border-radius') || '0.375rem'
-            })
-          ).get()
-        )).map(json => JSON.parse(json)),
-        headerStyles: Array.from(new Set(
-          $('h1, h2, h3, h4, h5, h6').map((_, el) =>
-            JSON.stringify({
-              fontSize: $(el).css('font-size') || '1rem',
-              fontWeight: $(el).css('font-weight') || '600',
-              color: $(el).css('color') || '#111827',
-              fontFamily: $(el).css('font-family') || 'system-ui'
-            })
-          ).get()
-        )).map(json => JSON.parse(json)),
-        layout: {
-          maxWidth: $('main, .container, [class*="container"]').first().css('max-width') || '1200px',
-          containerPadding: $('main, .container, [class*="container"]').first().css('padding') || '1rem',
-          gridGap: '1rem'
-        }
-      },
-      headerBackgroundColor: $('header').first().css('background-color') || '',
-      footerBackgroundColor: $('footer').first().css('background-color') || '',
-      footerLogo: $('footer img[src*="logo"]').first().attr('src') || '',
-      sectionBackgroundColors: $('section').map((_, el) => $(el).css('background-color')).get()
-    };
-
-    return new Response(JSON.stringify(extractedData), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
+    // Launch Puppeteer in the Node.js (Serverless) environment.
+    const browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true
     });
+    
+    const page = await browser.newPage();
+    // Navigate with "networkidle2" to ensure stylesheets and external assets are loaded.
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Use page.evaluate to extract data in the browser context.
+    // Note: We re-define a local resolveUrl inside evaluate to resolve relative URLs.
+    const extractedData = await page.evaluate(() => {
+      const baseUrl = document.baseURI;
+      // Local resolveUrl function replicated from our global version.
+      const resolveUrl = (relative: string): string => {
+        try {
+          if (!relative) return '';
+          if (relative.startsWith('data:')) return '';
+          if (relative.startsWith('http')) return relative;
+          if (relative.startsWith('//')) {
+            return window.location.protocol + relative;
+          }
+          return new URL(relative, baseUrl).href;
+        } catch {
+          return '';
+        }
+      };
 
+      // Extract colors from style tags and inline styles.
+      const colorsSet = new Set<string>();
+      document.querySelectorAll('style').forEach(styleEl => {
+        const text = styleEl.innerText;
+        const regex = /(#[0-9A-Fa-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\))/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          colorsSet.add(match[1]);
+        }
+      });
+      document.querySelectorAll('[style]').forEach(el => {
+        const style = el.getAttribute('style') || '';
+        const regex = /(#[0-9A-Fa-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\))/g;
+        let m;
+        while ((m = regex.exec(style)) !== null) {
+          colorsSet.add(m[1]);
+        }
+      });
+      const colors = Array.from(colorsSet).filter(c => c && c !== 'transparent' && c !== 'inherit');
+
+      // Extract fonts from inline styles and computed font on the body.
+      const fontsSet = new Set<string>();
+      document.querySelectorAll('[style*="font-family"]').forEach(el => {
+        const style = el.getAttribute('style') || '';
+        const match = style.match(/font-family:\s*([^;}]+)[;}]/);
+        if (match && match[1]) {
+          fontsSet.add(match[1].trim());
+        }
+      });
+      const bodyFont = window.getComputedStyle(document.body).getPropertyValue('font-family') || '';
+      bodyFont.split(',').forEach(f => fontsSet.add(f.trim()));
+      const fonts = Array.from(fontsSet);
+      if (!fonts.length) fonts.push('system-ui');
+
+      // Extract image URLs from all <img> elements and deduplicate.
+      const images = Array.from(document.querySelectorAll('img[src]')).map(img => {
+        const src = img.getAttribute('src') || '';
+        return resolveUrl(src);
+      });
+      const imagesUnique = Array.from(new Set(images.filter(Boolean)));
+
+      // Determine the logo: first image whose src contains "logo".
+      const logoEl = document.querySelector('img[src*="logo"]');
+      const logo = logoEl ? logoEl.getAttribute('src') : '';
+
+      // Extract button styles using computed styles.
+      const buttonEls = Array.from(document.querySelectorAll('button, .button, [class*="btn"]'));
+      const buttonStyles = buttonEls.map(btn => {
+        const computed = window.getComputedStyle(btn);
+        return {
+          backgroundColor: computed.backgroundColor || '#4F46E5',
+          color: computed.color || '#FFFFFF',
+          padding: computed.padding || '0.75rem 1.5rem',
+          borderRadius: computed.borderRadius || '0.375rem'
+        };
+      });
+      const uniqueButtonStyles = Array.from(new Set(buttonStyles.map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
+
+      // Extract header styles from h1-h6 elements.
+      const headerEls = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+      const headerStyles = headerEls.map(el => {
+        const computed = window.getComputedStyle(el);
+        return {
+          fontSize: computed.fontSize || '1rem',
+          fontWeight: computed.fontWeight || '600',
+          color: computed.color || '#111827',
+          fontFamily: computed.fontFamily || 'system-ui'
+        };
+      });
+      const uniqueHeaderStyles = Array.from(new Set(headerStyles.map(s => JSON.stringify(s)))).map(s => JSON.parse(s));
+      
+      // Extract layout details from the first container-like element.
+      const container = document.querySelector('main, .container, [class*="container"]');
+      const layout = container ? {
+        maxWidth: window.getComputedStyle(container).maxWidth || '1200px',
+        containerPadding: window.getComputedStyle(container).padding || '1rem',
+        gridGap: '1rem'
+      } : { maxWidth: '1200px', containerPadding: '1rem', gridGap: '1rem' };
+
+      // Extract header and footer information.
+      const headerBg = document.querySelector('header') ? window.getComputedStyle(document.querySelector('header') as Element).backgroundColor : '';
+      const footerBg = document.querySelector('footer') ? window.getComputedStyle(document.querySelector('footer') as Element).backgroundColor : '';
+      const footerLogoEl = document.querySelector('footer img[src*="logo"]');
+      const footerLogo = footerLogoEl ? footerLogoEl.getAttribute('src') : '';
+      const sectionBgColors = Array.from(document.querySelectorAll('section')).map(el => window.getComputedStyle(el).backgroundColor);
+
+      return {
+        colors,
+        fonts,
+        images: imagesUnique,
+        logo,
+        styles: {
+          // Additional style extractions (spacing, borderRadius, shadows, gradients) can be added as needed.
+          spacing: [],
+          borderRadius: [],
+          shadows: [],
+          gradients: [],
+          buttonStyles: uniqueButtonStyles,
+          headerStyles: uniqueHeaderStyles,
+          layout
+        },
+        headerBackgroundColor: headerBg,
+        footerBackgroundColor: footerBg,
+        footerLogo,
+        sectionBackgroundColors: sectionBgColors
+      };
+    });
+    
+    await browser.close();
+    return res.status(200).json(extractedData);
   } catch (error) {
     console.error('[Scraping API] Error:', error);
-    return new Response(JSON.stringify({
+    return res.status(500).json({
       error: 'Failed to scrape website',
       message: error instanceof Error ? error.message : 'Unknown error'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 }
