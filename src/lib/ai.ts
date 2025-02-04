@@ -224,7 +224,7 @@ export async function generateLandingPage(
       await waitForRateLimit();
       const openai = getOpenAIClient();
       
-      const fullPrompt = `Create a modern, responsive landing page that matches this exact style guide:
+      const fullPrompt = `Create a modern, responsive, single page landing page that matches this exact style guide:
 
       Brand Colors (use these exact values):
       ${style?.colors?.map((color, i) => `${i === 0 ? 'Primary: ' : i === 1 ? 'Text: ' : 'Background: '}${color}`).join('\n')}
@@ -273,7 +273,8 @@ export async function generateLandingPage(
       6. Include the logo and images in appropriate sections
       7. Follow the exact spacing and layout values provided
       8. Make sure any years are updated to the current year ${new Date().getFullYear()}
-      9. Make sure unless specified below, do not include any navigation or links in the header other than the logo
+      9. Make sure that unless specified below, do not include any navigation or links in the header other than the logo
+      10. Use Lorem Ipsum for all text content unless otherwise specified below.
 
       Additional Content Requirements:
       ${prompt}
@@ -281,12 +282,16 @@ export async function generateLandingPage(
       Respond ONLY with the complete HTML code including embedded CSS. Do not include any explanations or markdown.`;
 
       const completion = await openai.chat.completions.create({
-        model: "o1-mini",
+        model: "gpt-3.5-turbo",
         messages: [
-          { role: "user", content: fullPrompt }
+          { role: 'system', content: 'You are a helpful assistant specialized in web development and design.' },
+          { role: 'user', content: fullPrompt },
         ],
-        temperature: 1,
-        max_completion_tokens: 8000,
+        temperature: 0.7,
+        max_tokens: 4000,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
       });
 
       const generatedCode = completion.choices[0].message.content;

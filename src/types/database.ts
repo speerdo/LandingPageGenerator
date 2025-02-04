@@ -39,7 +39,7 @@ export interface ProjectSettings {
   extracted_styles?: WebsiteStyle;
   deployment?: {
     platform: 'webflow' | 'custom';
-    settings: Record<string, any>;
+    settings: Record<string, unknown>;
   };
 }
 
@@ -49,7 +49,6 @@ export interface WebsiteStyle {
   images: string[];
   logo?: string;
   metaDescription?: string;
-  headings?: string[];
   styles: {
     layout: {
       maxWidth: string;
