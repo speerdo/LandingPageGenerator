@@ -13,8 +13,6 @@
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "@supabase/supabase-js": "^2.39.0",
-    "cheerio": "^1.0.0",
-    "chrome-aws-lambda": "^10.1.0",
     "clsx": "^2.1.0",
     "colorthief": "^2.6.0",
     "cors": "^2.8.5",
@@ -22,7 +20,6 @@
     "express": "^4.21.2",
     "lucide-react": "^0.344.0",
     "openai": "^4.28.0",
-    "puppeteer-core": "^10.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.22.2",
