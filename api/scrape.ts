@@ -189,7 +189,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       render_js: 'true',
       block_resources: 'false',
       timeout: '20000', // bump if site is large
-      execute_script: script,
+      js_snippet: script,
       extract_rules: JSON.stringify(extractRules),
       // you can also set "premium_proxy": "true" if you want
     };
