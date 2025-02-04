@@ -23,8 +23,35 @@ function resolveUrl(base: string, url: string): string {
 
 // Add helper function for font extraction
 function extractFonts($: cheerio.CheerioAPI): string[] {
-  const fonts = new Set<string>();
-  
+  const fonts = new Set<string>();  
+
+  // Check common elements with computed styles
+  $('body, h1, h2, h3, h4, h5, h6, p, span, div').each((_, el) => {
+    // Try getting font-family from inline style first
+    const inlineStyle = $(el).attr('style');
+    if (inlineStyle) {
+      const fontMatch = inlineStyle.match(/font-family:\s*([^;}]+)[;}]/);
+      if (fontMatch?.[1]) {
+        fonts.add(fontMatch[1].trim());
+      }
+    }
+
+    // Also check any class-based styles
+    const classes = $(el).attr('class');
+    if (classes) {
+      const classNames = classes.split(' ');
+      classNames.forEach(className => {
+        $(`style:contains(.${className})`).each((_, styleEl) => {
+          const styleContent = $(styleEl).html() || '';
+          const fontMatches = styleContent.match(new RegExp(`\\.${className}[^}]*font-family:\\s*([^;}]+)[;}]`));
+          if (fontMatches?.[1]) {
+            fonts.add(fontMatches[1].trim());
+          }
+        });
+      });
+    }
+  });
+
   // Check style tags
   $('style').each((_, el) => {
     const styleContent = $(el).html() || '';
@@ -43,14 +70,6 @@ function extractFonts($: cheerio.CheerioAPI): string[] {
     const fontMatch = style.match(/font-family:\s*([^;}]+)[;}]/);
     if (fontMatch?.[1]) {
       fonts.add(fontMatch[1].trim());
-    }
-  });
-
-  // Check common elements
-  $('body, h1, h2, h3, h4, h5, h6, p, span, div').each((_, el) => {
-    const fontFamily = $(el).css('font-family');
-    if (fontFamily) {
-      fonts.add(fontFamily.trim());
     }
   });
 
@@ -73,7 +92,7 @@ function extractColors($: cheerio.CheerioAPI): string[] {
   });
 
   // Check elements with background-color or color
-  $('[style*="color"], [style*="background"]').each((_, el) => {
+  $('[style*="color"], [style*="background"], [style*="background-color"]').each((_, el) => {
     const bgColor = $(el).css('background-color');
     const color = $(el).css('color');
     if (bgColor && bgColor !== 'transparent') colors.add(bgColor);
