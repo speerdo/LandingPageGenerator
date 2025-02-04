@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-puppeteer.use(StealthPlugin());
+
+const stealth = StealthPlugin();
+// Remove the chrome.app evasion which may not exist in this version
+stealth.enabledEvasions.delete('chrome.app');
+puppeteer.use(stealth);
 
 // Global resolveUrl helper – available for use outside of page.evaluate if needed.
 export function resolveUrl(base: string, relative: string): string {
