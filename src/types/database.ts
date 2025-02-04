@@ -39,7 +39,7 @@ export interface ProjectSettings {
   extracted_styles?: WebsiteStyle;
   deployment?: {
     platform: 'webflow' | 'custom';
-    settings: Record<string, any>;
+    settings: Record<string, unknown>;
   };
 }
 

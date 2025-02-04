@@ -21,12 +21,96 @@ function resolveUrl(base: string, url: string): string {
   }
 }
 
+// Add helper function for font extraction
+function extractFonts($: cheerio.CheerioAPI): string[] {
+  const fonts = new Set<string>();
+  
+  // Check style tags
+  $('style').each((_, el) => {
+    const styleContent = $(el).html() || '';
+    const fontFamilyMatches = styleContent.match(/font-family:\s*([^;}]+)[;}]/g);
+    if (fontFamilyMatches) {
+      fontFamilyMatches.forEach(match => {
+        const font = match.replace('font-family:', '').replace(';', '').trim();
+        fonts.add(font);
+      });
+    }
+  });
+
+  // Check inline styles
+  $('[style*="font-family"]').each((_, el) => {
+    const style = $(el).attr('style') || '';
+    const fontMatch = style.match(/font-family:\s*([^;}]+)[;}]/);
+    if (fontMatch?.[1]) {
+      fonts.add(fontMatch[1].trim());
+    }
+  });
+
+  // Check common elements
+  $('body, h1, h2, h3, h4, h5, h6, p, span, div').each((_, el) => {
+    const fontFamily = $(el).css('font-family');
+    if (fontFamily) {
+      fonts.add(fontFamily.trim());
+    }
+  });
+
+  return Array.from(fonts)
+    .filter(font => font && font !== 'inherit')
+    .map(font => font.replace(/['"]/g, ''));
+}
+
+// Add helper function for color extraction
+function extractColors($: cheerio.CheerioAPI): string[] {
+  const colors = new Set<string>();
+  
+  // Check style tags
+  $('style').each((_, el) => {
+    const styleContent = $(el).html() || '';
+    const colorMatches = styleContent.match(/(#[0-9A-Fa-f]{3,8}|rgb\([^)]+\)|rgba\([^)]+\))/g);
+    if (colorMatches) {
+      colorMatches.forEach(color => colors.add(color));
+    }
+  });
+
+  // Check elements with background-color or color
+  $('[style*="color"], [style*="background"]').each((_, el) => {
+    const bgColor = $(el).css('background-color');
+    const color = $(el).css('color');
+    if (bgColor && bgColor !== 'transparent') colors.add(bgColor);
+    if (color) colors.add(color);
+  });
+  return Array.from(colors).filter(color => color && color !== 'transparent' && color !== 'inherit');
+}
+
+interface Heading {
+  tag: string;
+  text: string;
+  fontSize: string;
+  fontWeight: string;
+  color: string;
+  fontFamily: string;
+}
+
+function extractHeadings($: cheerio.CheerioAPI): Heading[] {
+  return $('h1, h2, h3, h4, h5, h6').map((_, el) => {
+    const $el = $(el);
+    return {
+      tag: $el.prop('tagName').toLowerCase(),
+      text: $el.text().trim(),
+      fontSize: $el.css('font-size') || '',
+      fontWeight: $el.css('font-weight') || '',
+      color: $el.css('color') || '',
+      fontFamily: $el.css('font-family') || ''
+    };
+  }).get();
+}
+
 export default async function handler(req: NextRequest) {
   if (req.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
@@ -79,118 +163,57 @@ export default async function handler(req: NextRequest) {
       throw new Error(`ScrapingBee API failed: ${response.status} - ${html}`);
     }
 
-    const $ = cheerio.load(html);
-
-    // Extract colors (improved to get computed styles)
-    const colors = new Set<string>();
-    $('*').each((_, el) => {
-      const color = $(el).css('color');
-      const backgroundColor = $(el).css('background-color');
-      if (color && color !== 'transparent') colors.add(color);
-      if (backgroundColor && backgroundColor !== 'transparent') colors.add(backgroundColor);
-    });
-
-    // Extract fonts (improved to include computed styles)
-    const fonts = new Set<string>();
-    $('*').each((_, el) => {
-      const fontFamily = $(el).css('font-family');
-      if (fontFamily) fonts.add(fontFamily.replace(/['"]/g, ''));
-    });
-
-    // Deduplicate button styles
-    const buttonStylesSet = new Set<string>();
-    const buttonStyles: ButtonStyle[] = [];
-    $('button, .button, [class*="btn"], a[href]:not([href^="#"])').each((_, el) => {
-      const backgroundColor = $(el).css('background-color');
-      const color = $(el).css('color');
-      const padding = $(el).css('padding');
-      const borderRadius = $(el).css('border-radius');
-      
-      const styleKey = JSON.stringify({
-        backgroundColor: backgroundColor || '#4F46E5',
-        color: color || '#FFFFFF',
-        padding: padding || '0.75rem 1.5rem',
-        borderRadius: borderRadius || '0.375rem'
-      });
-      
-      if (!buttonStylesSet.has(styleKey)) {
-        buttonStylesSet.add(styleKey);
-        buttonStyles.push(JSON.parse(styleKey));
-      }
-    });
-
-    // Extract header styles with actual values
-    const headerStylesSet = new Set<string>();
-    const headerStyles: HeaderStyle[] = [];
-    $('h1, h2, h3, h4, h5, h6').each((_, el) => {
-      const computedStyle = {
-        fontSize: $(el).css('font-size'),
-        fontWeight: $(el).css('font-weight'),
-        color: $(el).css('color'),
-        fontFamily: $(el).css('font-family')
-      };
-      const styleKey = JSON.stringify({
-        fontSize: computedStyle.fontSize || '1rem',
-        fontWeight: computedStyle.fontWeight || '600',
-        color: computedStyle.color || '#111827',
-        fontFamily: (computedStyle.fontFamily || 'system-ui').replace(/['"]/g, '')
-      });
-      
-      if (!headerStylesSet.has(styleKey)) {
-        headerStylesSet.add(styleKey);
-        headerStyles.push(JSON.parse(styleKey));
-      }
-    });
-
-    // Extract images
-    const images = new Set<string>();
-    $('img').each((_, el) => {
-      const src = $(el).attr('src');
-      if (src) images.add(resolveUrl(url, src));
-    });
-
-    // Extract logo
-    const logo = $('img[src*="logo"], a[href="/"] img').first().attr('src') || '';
-
-    // Extract header and footer colors
-    const headerBackgroundColor = $('header').first().css('background-color') || '';
-    const footerBackgroundColor = $('footer').first().css('background-color') || '';
-    const footerLogo = $('footer img[src*="logo"]').first().attr('src') || '';
-
-    // Extract section background colors
-    const sectionBackgroundColors = new Set<string>();
-    $('section, div[class*="section"]').each((_, el) => {
-      const bgColor = $(el).css('background-color');
-      if (bgColor) sectionBackgroundColors.add(bgColor);
-    });
-
-    // Update the styles object
-    const styles = {
-      spacing: ['0.5rem', '1rem', '1.5rem', '2rem'],
-      borderRadius: ['0.25rem', '0.5rem', '0.75rem'],
-      shadows: ['0 1px 3px rgba(0,0,0,0.1)'],
-      gradients: [] as string[],
-      buttonStyles,
-      headerStyles,
-      layout: {
-        maxWidth: '1200px',
-        containerPadding: '1rem',
-        gridGap: '1rem'
-      }
+    const $ = cheerio.load(html) as cheerio.CheerioAPI;
+    
+    // Extract data using enhanced helpers
+    const extractedData = {
+      colors: extractColors($),
+      fonts: extractFonts($),
+      images: $('img[src]').map((_, el) => {
+        const src = $(el).attr('src') || '';
+        return resolveUrl(url, src);
+      }).get().filter(Boolean),
+      headings: extractHeadings($),
+      logo: $('img[src*="logo"]').first().attr('src') || '',
+      styles: {
+        spacing: Array.from(new Set([
+          ...($('[style*="margin"]').map((_, el) => $(el).css('margin')).get()),
+          ...($('[style*="padding"]').map((_, el) => $(el).css('padding')).get())
+        ])).filter(Boolean),
+        borderRadius: Array.from(new Set(
+          $('[style*="border-radius"]').map((_, el) => $(el).css('border-radius')).get()
+        )).filter(Boolean),
+        shadows: Array.from(new Set(
+          $('[style*="box-shadow"]').map((_, el) => $(el).css('box-shadow')).get()
+        )).filter(Boolean),
+        gradients: Array.from(new Set(
+          $('[style*="gradient"]').map((_, el) => $(el).css('background-image')).get()
+        )).filter(val => val?.includes('gradient')),
+        buttonStyles: $('button, .button, [class*="btn"]').map((_, el) => ({
+          backgroundColor: $(el).css('background-color') || '#4F46E5',
+          color: $(el).css('color') || '#FFFFFF',
+          padding: $(el).css('padding') || '0.75rem 1.5rem',
+          borderRadius: $(el).css('border-radius') || '0.375rem'
+        })).get(),
+        headerStyles: $('h1, h2, h3, h4, h5, h6').map((_, el) => ({
+          fontSize: $(el).css('font-size') || '1rem',
+          fontWeight: $(el).css('font-weight') || '600',
+          color: $(el).css('color') || '#111827',
+          fontFamily: $(el).css('font-family') || 'system-ui'
+        })).get(),
+        layout: {
+          maxWidth: $('main, .container, [class*="container"]').first().css('max-width') || '1200px',
+          containerPadding: $('main, .container, [class*="container"]').first().css('padding') || '1rem',
+          gridGap: '1rem'
+        }
+      },
+      headerBackgroundColor: $('header').first().css('background-color') || '',
+      footerBackgroundColor: $('footer').first().css('background-color') || '',
+      footerLogo: $('footer img[src*="logo"]').first().attr('src') || '',
+      sectionBackgroundColors: $('section').map((_, el) => $(el).css('background-color')).get()
     };
 
-    return new Response(JSON.stringify({
-      colors: Array.from(colors),
-      fonts: Array.from(fonts),
-      images: Array.from(images),
-      headings: [],
-      logo,
-      styles,
-      headerBackgroundColor,
-      footerBackgroundColor,
-      footerLogo: resolveUrl(url, footerLogo),
-      sectionBackgroundColors: Array.from(sectionBackgroundColors)
-    }), {
+    return new Response(JSON.stringify(extractedData), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -205,18 +228,4 @@ export default async function handler(req: NextRequest) {
       headers: { 'Content-Type': 'application/json' }
     });
   }
-}
-
-interface ButtonStyle {
-  backgroundColor: string;
-  color: string;
-  padding: string;
-  borderRadius: string;
-}
-
-interface HeaderStyle {
-  fontSize: string;
-  fontWeight: string;
-  color: string;
-  fontFamily: string;
 }
