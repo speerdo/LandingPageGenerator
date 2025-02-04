@@ -274,6 +274,7 @@ export async function generateLandingPage(
       7. Follow the exact spacing and layout values provided
       8. Make sure any years are updated to the current year ${new Date().getFullYear()}
       9. Make sure that unless specified below, do not include any navigation or links in the header other than the logo
+      10. Use Lorem Ipsum for all text content unless otherwise specified below.
 
       Additional Content Requirements:
       ${prompt}

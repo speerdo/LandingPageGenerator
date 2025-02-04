@@ -84,7 +84,6 @@ function extractColors($: cheerio.CheerioAPI): string[] {
 
 interface Heading {
   tag: string;
-  text: string;
   fontSize: string;
   fontWeight: string;
   color: string;
@@ -96,7 +95,6 @@ function extractHeadings($: cheerio.CheerioAPI): Heading[] {
     const $el = $(el);
     return {
       tag: $el.prop('tagName').toLowerCase(),
-      text: $el.text().trim(),
       fontSize: $el.css('font-size') || '',
       fontWeight: $el.css('font-weight') || '',
       color: $el.css('color') || '',
