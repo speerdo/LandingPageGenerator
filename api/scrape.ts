@@ -164,11 +164,18 @@ export default async function handler(req: NextRequest) {
     // Extract data using enhanced helpers
     const extractedData = {
       colors: extractColors($),
-      fonts: extractFonts($),
-      images: $('img[src]').map((_, el) => {
-        const src = $(el).attr('src') || '';
-        return resolveUrl(url, src);
-      }).get().filter(Boolean),
+      // Deduplicate fonts and provide fallback if none were extracted
+      fonts: (() => {
+        const f = extractFonts($);
+        return f.length ? f : ['system-ui'];
+      })(),
+      // Deduplicate image URLs
+      images: Array.from(new Set(
+        $('img[src]').map((_, el) => {
+          const src = $(el).attr('src') || '';
+          return resolveUrl(url, src);
+        }).get().filter(Boolean)
+      )),
       logo: $('img[src*="logo"]').first().attr('src') || '',
       styles: {
         spacing: Array.from(new Set([
@@ -184,18 +191,26 @@ export default async function handler(req: NextRequest) {
         gradients: Array.from(new Set(
           $('[style*="gradient"]').map((_, el) => $(el).css('background-image')).get()
         )).filter(val => val?.includes('gradient')),
-        buttonStyles: $('button, .button, [class*="btn"]').map((_, el) => ({
-          backgroundColor: $(el).css('background-color') || '#4F46E5',
-          color: $(el).css('color') || '#FFFFFF',
-          padding: $(el).css('padding') || '0.75rem 1.5rem',
-          borderRadius: $(el).css('border-radius') || '0.375rem'
-        })).get(),
-        headerStyles: $('h1, h2, h3, h4, h5, h6').map((_, el) => ({
-          fontSize: $(el).css('font-size') || '1rem',
-          fontWeight: $(el).css('font-weight') || '600',
-          color: $(el).css('color') || '#111827',
-          fontFamily: $(el).css('font-family') || 'system-ui'
-        })).get(),
+        buttonStyles: Array.from(new Set(
+          $('button, .button, [class*="btn"]').map((_, el) =>
+            JSON.stringify({
+              backgroundColor: $(el).css('background-color') || '#4F46E5',
+              color: $(el).css('color') || '#FFFFFF',
+              padding: $(el).css('padding') || '0.75rem 1.5rem',
+              borderRadius: $(el).css('border-radius') || '0.375rem'
+            })
+          ).get()
+        )).map(json => JSON.parse(json)),
+        headerStyles: Array.from(new Set(
+          $('h1, h2, h3, h4, h5, h6').map((_, el) =>
+            JSON.stringify({
+              fontSize: $(el).css('font-size') || '1rem',
+              fontWeight: $(el).css('font-weight') || '600',
+              color: $(el).css('color') || '#111827',
+              fontFamily: $(el).css('font-family') || 'system-ui'
+            })
+          ).get()
+        )).map(json => JSON.parse(json)),
         layout: {
           maxWidth: $('main, .container, [class*="container"]').first().css('max-width') || '1200px',
           containerPadding: $('main, .container, [class*="container"]').first().css('padding') || '1rem',
